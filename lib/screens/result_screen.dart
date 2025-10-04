@@ -1,16 +1,19 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:foodapp_recognizer/screens/recipe_detail_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:foodapp_recognizer/services/recipe_service.dart';
+import 'package:foodapp_recognizer/screens/recipe_detail_screen.dart';
 
 class ResultScreen extends StatelessWidget {
-  final String label; // nama hasil prediksi (contoh: "Nasi Lemak")
-  final double confidence; // confidence hasil prediksi (0.0 - 1.0)
+  final String label;
+  final double confidence;
+  final File imageFile;
 
   const ResultScreen({
     super.key,
     required this.label,
     required this.confidence,
+    required this.imageFile, // wajib kirim dari page sebelumnya
   });
 
   @override
@@ -19,8 +22,8 @@ class ResultScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Result Page"),
-        backgroundColor: Color(0XFF3DA0A7),
+        title: const Text("Recognition Result"),
+        backgroundColor: const Color.fromARGB(255, 73, 158, 76),
       ),
       body: FutureBuilder<Map<String, dynamic>>(
         future: recipeService.fetchRecipeByName(label),
@@ -32,12 +35,7 @@ class ResultScreen extends StatelessWidget {
           }
 
           if (snapshot.hasError) {
-            return Center(
-              child: Text(
-                "Error: ${snapshot.error}",
-                style: const TextStyle(color: Colors.red),
-              ),
-            );
+            return Center(child: Text("Error: ${snapshot.error}"));
           }
 
           if (!snapshot.hasData) {
@@ -45,108 +43,106 @@ class ResultScreen extends StatelessWidget {
           }
 
           final recipe = snapshot.data!;
-          final mealName = recipe['strMeal'] ?? label;
-          final mealThumb = recipe['strMealThumb'];
+          final isMealDb = recipe.containsKey("strMeal");
+          final isUsda =
+              recipe.containsKey("name") && recipe.containsKey("dataType");
+
+          final mealName = isMealDb
+              ? recipe['strMeal']
+              : recipe['name'] ?? label;
+
+          final source = isMealDb ? "TheMealDB" : "USDA FoodData Central";
 
           return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Gambar utama
-                if (mealThumb != null)
-                  InkWell(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => RecipeDetailScreen(recipeName: label),
-                          // builder: (_) =>
-                          //     ResultScreen(label: "sushi", confidence: 0.8),
-                        ),
-                      );
-                    },
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.network(
-                        mealThumb,
-                        height: 220,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
+                // 🔹 Gambar utama dari kamera/galeri
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.file(
+                    imageFile,
+                    height: 220,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
                   ),
+                ),
+
+                const SizedBox(height: 12),
+
                 const SizedBox(height: 16),
 
                 // Nama + confidence
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      mealName,
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
+                    Expanded(
+                      child: Text(
+                        mealName,
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                     Text(
-                      "${(confidence * 100).toStringAsFixed(2)}%",
+                      "${(confidence * 100).toStringAsFixed(1)}%",
                       style: const TextStyle(fontSize: 16, color: Colors.grey),
                     ),
                   ],
                 ),
+                const SizedBox(height: 12),
+                Text(
+                  "Source: $source",
+                  style: const TextStyle(fontSize: 14, color: Colors.grey),
+                ),
+
                 const Divider(height: 30),
 
-                // Nutrition Facts (dummy data sementara)
-                const Text(
-                  "Nutrition Facts",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 10),
-                _buildNutritionRow("Calories", "450 g"),
-                _buildNutritionRow("Carbs", "50 g"),
-                _buildNutritionRow("Fat", "25 g"),
-                _buildNutritionRow("Fiber", "3 g"),
-                _buildNutritionRow("Protein", "10 g"),
-                const Divider(height: 30),
-
-                // Reference
-                const Text(
-                  "Reference",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 10),
-                InkWell(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => RecipeDetailScreen(recipeName: label),
-                        // builder: (_) =>
-                        //     ResultScreen(label: "sushi", confidence: 0.8),
-                      ),
-                    );
-                  },
-                  child: ListTile(
-                    leading: InkWell(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                RecipeDetailScreen(recipeName: label),
-                            // builder: (_) =>
-                            //     ResultScreen(label: "sushi", confidence: 0.8),
-                          ),
-                        );
-                      },
-                      child: CircleAvatar(
-                        backgroundImage: NetworkImage(mealThumb ?? ""),
-                      ),
-                    ),
-                    title: Text(mealName),
+                // Info tambahan
+                if (isUsda) ...[
+                  Text(
+                    "Brand: ${recipe['brand'] ?? 'Unknown'}",
+                    style: const TextStyle(fontSize: 16),
                   ),
-                ),
+                  Text(
+                    "Data Type: ${recipe['dataType']}",
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                ] else ...[
+                  const Text(
+                    "Nutrition Facts (sample)",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 10),
+                  _buildNutritionRow("Calories", "450 kcal"),
+                  _buildNutritionRow("Carbs", "50 g"),
+                  _buildNutritionRow("Fat", "25 g"),
+                  _buildNutritionRow("Protein", "10 g"),
+                ],
+
+                const Divider(height: 30),
+
+                if (isMealDb)
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => RecipeDetailScreen(
+                            recipeName: mealName,
+                            imageFile: imageFile,
+                          ),
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text("View Full Recipe"),
+                  ),
               ],
             ),
           );

@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 
 class HomeProvider extends ChangeNotifier {
   File? selectedImage;
+  bool modelReady = false; // status model
   final ImagePicker _picker = ImagePicker();
 
   File? get image => selectedImage;
@@ -20,7 +21,6 @@ class HomeProvider extends ChangeNotifier {
     }
   }
 
-  // ✅ Tambahkan ini
   void setImage(File imageFile) {
     selectedImage = imageFile;
     notifyListeners();
@@ -28,6 +28,11 @@ class HomeProvider extends ChangeNotifier {
 
   void clearImage() {
     selectedImage = null;
+    notifyListeners();
+  }
+
+  void setModelReady(bool ready) {
+    modelReady = ready;
     notifyListeners();
   }
 }

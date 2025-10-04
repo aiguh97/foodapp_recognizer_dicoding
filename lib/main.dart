@@ -2,12 +2,9 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:foodapp_recognizer/firebase_options.dart';
 import 'package:foodapp_recognizer/provider/home_provider.dart';
-import 'package:foodapp_recognizer/screens/food_notfound.dart';
+import 'package:foodapp_recognizer/provider/image_classification_provider.dart';
 import 'package:foodapp_recognizer/screens/home_screen.dart';
-import 'package:foodapp_recognizer/screens/recipe_detail_screen.dart';
-import 'package:foodapp_recognizer/screens/result_screen.dart';
-import 'package:foodapp_recognizer/services/firebase_ml_service.dart';
-import 'package:foodapp_recognizer/services/lite_rt_service.dart';
+import 'package:foodapp_recognizer/services/image_classification_service.dart';
 import 'package:foodapp_recognizer/services/recipe_service.dart';
 import 'package:provider/provider.dart';
 
@@ -26,10 +23,16 @@ class RecipeApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => HomeProvider()),
         Provider(create: (_) => RecipeService()),
-        Provider(create: (_) => FirebaseMlService()),
+        // Provider(create: (_) => FirebaseMlService()),
+
+        // ✅ Tambahkan ini
+        Provider(create: (_) => ImageClassificationService()),
+
         ChangeNotifierProvider(
-          create: (context) =>
-              LiteRtService(context.read<FirebaseMlService>())..initModel(),
+          lazy: false,
+          create: (context) => ImageClassificationViewmodel(
+            context.read<ImageClassificationService>(),
+          ),
         ),
       ],
       child: MaterialApp(
@@ -56,10 +59,7 @@ class RecipeApp extends StatelessWidget {
             titleMedium: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
         ),
-        // ✅ Langsung ke HomeScreen
         home: const HomeScreen(),
-        // home: const HomePage(),
-        // home: const FoodNotFound(),
       ),
     );
   }

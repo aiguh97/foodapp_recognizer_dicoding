@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:foodapp_recognizer/services/firebase_ml_service.dart';
-import 'package:foodapp_recognizer/services/lite_rt_service.dart';
+import 'package:foodapp_recognizer/services/image_classification_service.dart';
 import 'package:foodapp_recognizer/services/recipe_service.dart';
 
 class AppInitializer extends ChangeNotifier {
@@ -8,8 +8,8 @@ class AppInitializer extends ChangeNotifier {
   bool isLoading = true;
   String? error;
 
-  late FirebaseMlService firebaseMlService;
-  late LiteRtService liteRtService;
+  // late FirebaseMlService firebaseMlService;
+  late ImageClassificationService imageClassificationService;
   late RecipeService recipeService;
 
   AppInitializer() {
@@ -18,20 +18,24 @@ class AppInitializer extends ChangeNotifier {
 
   Future<void> _init() async {
     try {
-      // 🔹 Init Firebase sekali saja
-      await FirebaseMlService.initFirebaseIfNeeded();
+      // ✅ 1. Inisialisasi Firebase (jika diperlukan)
+      // await FirebaseMlService.initFirebaseIfNeeded();
 
-      // 🔹 Init services
-      firebaseMlService = FirebaseMlService();
+      // // ✅ 2. Buat instance service
+      // firebaseMlService = FirebaseMlService();
       recipeService = RecipeService();
-      liteRtService = LiteRtService(firebaseMlService);
+      imageClassificationService = ImageClassificationService();
 
-      // 🔹 Load ML model (ini bisa agak lama)
-      await liteRtService.initModel();
+      // ✅ 3. Load model + labels di background
+      await imageClassificationService.initHelper();
 
+      // ✅ 4. Tandai siap digunakan
       isReady = true;
-    } catch (e) {
+    } catch (e, st) {
       error = e.toString();
+      if (kDebugMode) {
+        print("❌ Gagal inisialisasi AppInitializer: $e\n$st");
+      }
     } finally {
       isLoading = false;
       notifyListeners();

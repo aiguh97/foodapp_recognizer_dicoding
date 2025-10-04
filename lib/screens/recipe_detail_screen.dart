@@ -1,166 +1,182 @@
-// lib/pages/recipe_detail_page.dart
-
+import 'dart:io';
 import 'package:flutter/material.dart';
-import '../services/recipe_service.dart';
+import 'package:provider/provider.dart';
 import '../widgets/ingredients_tab.dart';
 import '../widgets/procedure_tab.dart';
+import '../provider/recipe_provider.dart';
 
-class RecipeDetailScreen extends StatefulWidget {
+class RecipeDetailScreen extends StatelessWidget {
   final String recipeName;
-  const RecipeDetailScreen({super.key, required this.recipeName});
+  final File imageFile;
 
-  @override
-  State<RecipeDetailScreen> createState() => _RecipeDetailScreenState();
-}
-
-class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
-  late Future<Map<String, dynamic>> _futureRecipe;
-  int _activeTab = 0; // 0 = ingredients, 1 = procedure
-
-  @override
-  void initState() {
-    super.initState();
-    _futureRecipe = RecipeService().fetchRecipeByName(widget.recipeName);
-  }
+  const RecipeDetailScreen({
+    super.key,
+    required this.recipeName,
+    required this.imageFile,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: FutureBuilder<Map<String, dynamic>>(
-          future: _futureRecipe,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return Center(child: Text("Error: ${snapshot.error}"));
-            }
-            final recipe = snapshot.data!;
-            final title = recipe['strMeal'] ?? "";
-            final imageUrl = recipe['strMealThumb'] ?? "";
-
-            // instructions safe cast
-            final instructionsRaw = recipe['strInstructions'];
-            final instructions = instructionsRaw is String
-                ? instructionsRaw
-                : "";
-            final steps = instructions
-                .split(RegExp(r'[\r\n]+'))
-                .where((s) => s.trim().isNotEmpty)
-                .toList();
-
-            // parse ingredients
-            final ingredients = <Map<String, String>>[];
-            for (int i = 1; i <= 20; i++) {
-              final ingKey = 'strIngredient$i';
-              final measureKey = 'strMeasure$i';
-              final ing = recipe[ingKey];
-              final measure = recipe[measureKey];
-              if (ing != null && (ing as String).trim().isNotEmpty) {
-                ingredients.add({
-                  'ingredient': ing.toString(),
-                  'measure': (measure ?? "").toString(),
-                });
+    return ChangeNotifierProvider(
+      create: (_) => RecipeProvider(recipeName),
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text("Ingredients & Procedure"),
+          backgroundColor: const Color.fromARGB(255, 73, 158, 76),
+        ),
+        body: SafeArea(
+          child: Consumer<RecipeProvider>(
+            builder: (context, provider, _) {
+              if (provider.loading) {
+                return const Center(child: CircularProgressIndicator());
               }
-            }
+              if (provider.error != null) {
+                return Center(child: Text("Error: ${provider.error}"));
+              }
 
-            return Column(
-              children: [
-                // Gambar header
-                imageUrl.isNotEmpty
-                    ? Image.network(
-                        imageUrl,
-                        height: 200,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                      )
-                    : const SizedBox.shrink(),
+              final recipe = provider.recipe ?? {};
+              final title = recipe['strMeal'] ?? "";
+              final imageUrl = recipe['strMealThumb'] ?? "";
 
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
+              // Instructions
+              final instructionsRaw = recipe['strInstructions'];
+              final instructions = instructionsRaw is String
+                  ? instructionsRaw
+                  : "";
+              final steps = instructions
+                  .split(RegExp(r'[\r\n]+'))
+                  .where((s) => s.trim().isNotEmpty)
+                  .toList();
+
+              // Ingredients
+              final ingredients = <Map<String, String>>[];
+
+              if (recipe.containsKey("foodNutrients")) {
+                final nutrients = recipe["foodNutrients"] as List;
+                for (var n in nutrients) {
+                  ingredients.add({
+                    "ingredient": n["nutrientName"] ?? "",
+                    "measure": "${n["value"] ?? ""} ${n["unitName"] ?? ""}"
+                        .trim(),
+                  });
+                }
+              } else {
+                for (int i = 1; i <= 20; i++) {
+                  final ingKey = 'strIngredient$i';
+                  final measureKey = 'strMeasure$i';
+                  final ing = recipe[ingKey];
+                  final measure = recipe[measureKey];
+                  if (ing != null && (ing as String).trim().isNotEmpty) {
+                    ingredients.add({
+                      'ingredient': ing.toString(),
+                      'measure': (measure ?? "").toString(),
+                    });
+                  }
+                }
+              }
+
+              return Column(
+                children: [
+                  // Tampilkan imageFile lokal dulu, kalau ada
+                  if (imageFile.existsSync())
+                    Image.file(
+                      imageFile,
+                      height: 200,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                    )
+                  else if (imageUrl.isNotEmpty)
+                    Image.network(
+                      imageUrl,
+                      height: 200,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                    )
+                  else
+                    const SizedBox(height: 200), // placeholder
+
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
-                ),
 
-                // Custom Tab Bar (pill style)
-                Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 16),
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => setState(() => _activeTab = 0),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            decoration: BoxDecoration(
-                              color: _activeTab == 0
-                                  ? Colors.green
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              "Ingredients",
-                              style: TextStyle(
-                                color: _activeTab == 0
-                                    ? Colors.white
-                                    : Colors.black,
-                                fontWeight: FontWeight.w600,
+                  // Tab bar
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 16),
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade200,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => provider.setActiveTab(0),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              decoration: BoxDecoration(
+                                color: provider.activeTab == 0
+                                    ? Colors.green
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                "Ingredients",
+                                style: TextStyle(
+                                  color: provider.activeTab == 0
+                                      ? Colors.white
+                                      : Colors.black,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => setState(() => _activeTab = 1),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            decoration: BoxDecoration(
-                              color: _activeTab == 1
-                                  ? Colors.green
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              "Procedure",
-                              style: TextStyle(
-                                color: _activeTab == 1
-                                    ? Colors.white
-                                    : Colors.black,
-                                fontWeight: FontWeight.w600,
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => provider.setActiveTab(1),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              decoration: BoxDecoration(
+                                color: provider.activeTab == 1
+                                    ? Colors.green
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                "Procedure",
+                                style: TextStyle(
+                                  color: provider.activeTab == 1
+                                      ? Colors.white
+                                      : Colors.black,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-
-                const SizedBox(height: 12),
-
-                // Content
-                Expanded(
-                  child: _activeTab == 0
-                      ? IngredientsTab(ingredients: ingredients)
-                      : ProcedureTab(steps: steps),
-                ),
-              ],
-            );
-          },
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: provider.activeTab == 0
+                        ? IngredientsTab(ingredients: ingredients)
+                        : ProcedureTab(steps: steps),
+                  ),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
