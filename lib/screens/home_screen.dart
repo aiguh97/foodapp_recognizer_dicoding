@@ -107,37 +107,34 @@ class HomeScreen extends StatelessWidget {
       if (!context.mounted) return;
       Navigator.pop(context);
 
+      // 💡 TAMBAH FILTER UNTUK __BACKGROUND__
+      if (label.trim().toLowerCase() == "__background__") {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const FoodNotFound(
+              label: "Object detected, but not a recognized food item.",
+            ),
+          ),
+        );
+        return; // Hentikan proses jika background
+      }
+      // -----------------------------------------------------------------
+
       if (confidence > 0.5) {
         try {
+          // ... (sisa logika pencarian resep dan navigasi)
           final recipe = await context.read<RecipeService>().fetchRecipeByName(
             label.trim(),
           );
 
           if (recipe != null) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => RecipeDetailScreen(recipeName: label.trim()),
-              ),
-            );
+            // ... (Navigasi ke RecipeDetailScreen)
           } else {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => FoodNotFound(label: label)),
-            );
+            // ... (Navigasi ke FoodNotFound)
           }
         } catch (e) {
-          // Navigator.push(
-          //   context,
-          //   MaterialPageRoute(builder: (_) => FoodNotFound(label: label)),
-          // );
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              // builder: (_) => RecipeDetailScreen(recipeName: "sushi"),
-              builder: (_) => ResultScreen(label: "sushi", confidence: 0.8),
-            ),
-          );
+          // ... (Logika navigasi ResultScreen/FoodNotFound jika pencarian resep gagal)
         }
       } else {
         Navigator.push(
@@ -147,10 +144,17 @@ class HomeScreen extends StatelessWidget {
       }
     } catch (e) {
       if (!context.mounted) return;
-      Navigator.pop(context);
+      Navigator.pop(
+        context,
+      ); // tutup dialog / halaman sebelumnya (biasanya loading)
+      print("skkfjskjskfjs $e"); // debug print error
+
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => const FoodNotFound(label: "UNKNOWN")),
+        MaterialPageRoute(
+          builder: (_) =>
+              FoodNotFound(label: e.toString()), // tampilkan halaman error
+        ),
       );
     }
   }

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
+import 'package:flutter/services.dart' show rootBundle; // 💡 TAMBAH INI
 import 'package:tflite_flutter/tflite_flutter.dart';
 import 'package:foodapp_recognizer/services/firebase_ml_service.dart';
 
@@ -16,43 +17,54 @@ class LiteRtService extends ChangeNotifier {
   Interpreter? interpreter;
   bool isReady = false;
 
-  final List<String> labels = [
-    "Nasi Goreng",
-    "Mie Goreng",
-    "Sate Ayam",
-    // tambahkan semua kelas sesuai model
-  ];
+  // 1. 💡 Hapus inisialisasi hardcoded. Biarkan kosong.
+  List<String> labels = [];
+
+  Future<void> _loadLabels() async {
+    final labelContent = await rootBundle.loadString(
+      'assets/probability-labels.txt',
+    );
+    labels = labelContent
+        .split('\n')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+
+    if (labels.isEmpty) {
+      throw Exception("Label file kosong atau gagal dimuat.");
+    }
+
+    log("✅ Label berhasil dimuat: ${labels.length} kelas");
+  }
 
   Future<void> initModel() async {
-    try {
-      log("🔄 Mulai load model dari Firebase...");
-      modelFile = await _mlService.loadModel();
+    await _loadLabels();
 
-      if (modelFile == null || !modelFile!.existsSync()) {
-        throw Exception("Model file tidak ditemukan / corrupt");
-      }
-      log("📂 Model berhasil diunduh: ${modelFile!.path}");
-
-      final options = InterpreterOptions()
-        ..useNnApiForAndroid = true
-        ..useMetalDelegateForIOS = true;
-
-      interpreter = Interpreter.fromFile(modelFile!, options: options);
-
-      final inputTensors = interpreter!.getInputTensors();
-      final outputTensors = interpreter!.getOutputTensors();
-      log(
-        "✅ Interpreter siap, Input: ${inputTensors.map((e) => e.shape).toList()}, "
-        "Output: ${outputTensors.map((e) => e.shape).toList()}",
-      );
-
-      isReady = true;
-      notifyListeners();
-    } catch (e, st) {
-      log("❌ Error loading model: $e", stackTrace: st);
-      isReady = false;
-      notifyListeners();
+    log("🔄 Load model...");
+    modelFile = await _mlService.loadModel();
+    if (modelFile == null || !modelFile!.existsSync()) {
+      throw Exception("Model file tidak ditemukan");
     }
+
+    final options = InterpreterOptions()
+      ..useNnApiForAndroid = true
+      ..useMetalDelegateForIOS = true;
+
+    interpreter = Interpreter.fromFile(modelFile!, options: options);
+
+    final numClassesModel = interpreter!.getOutputTensors().first.shape.last;
+    log(
+      "📊 Jumlah kelas model: $numClassesModel, Label file: ${labels.length}",
+    );
+
+    if (numClassesModel != labels.length) {
+      throw Exception(
+        "❌ Jumlah output model ($numClassesModel) ≠ label (${labels.length})",
+      );
+    }
+
+    isReady = true;
+    notifyListeners();
   }
 
   /// Fungsi predict yang mengembalikan label string + confidence
@@ -61,60 +73,58 @@ class LiteRtService extends ChangeNotifier {
       throw Exception("❌ Model belum siap. Pastikan initModel() selesai.");
     }
 
-    // Ambil tensor shape
-    final inputShape = interpreter!.getInputTensors().first.shape;
-    final outputShape = interpreter!.getOutputTensors().first.shape;
+    if (labels.isEmpty) {
+      throw Exception("❌ Daftar label kosong. Gagal memuat label.");
+    }
 
+    final inputShape = interpreter!.getInputTensors().first.shape;
+    final outputTensor = interpreter!.getOutputTensors().first;
+
+    // 💡 TAMBAHKAN KODE INI UNTUK MENDAPATKAN DIMENSI INPUT
     final int inputHeight = inputShape[1];
     final int inputWidth = inputShape[2];
     final int inputChannels = inputShape[3];
-    final int numClasses = outputShape.last;
+    final int numClasses = outputTensor.shape.last;
+    // --------------------------------------------------------
 
-    // Load dan decode image
+    if (numClasses != labels.length) {
+      throw Exception(
+        "❌ Jumlah output model ($numClasses) tidak sesuai dengan jumlah label (${labels.length}).",
+      );
+    }
+
+    // 🔹 Load dan decode image
     final rawBytes = await imageFile.readAsBytes();
     final rawImage = img.decodeImage(rawBytes);
     if (rawImage == null) throw Exception("❌ Gagal membaca image");
 
-    // Resize sesuai input model
-    // final resized = img.copyResize(
-    //   rawImage,
-    //   width: inputWidth,
-    //   height: inputHeight,
-    // );
     final resized = img.copyResize(
       rawImage,
       width: inputWidth,
       height: inputHeight,
     );
 
-    // Buat Float32List input
-    final input = Float32List(1 * inputHeight * inputWidth * inputChannels);
+    // ... (kode pembentukan Uint8List input, yang sudah benar) ...
+    final input = Uint8List(1 * inputHeight * inputWidth * inputChannels);
+    // ... (loop pengisian input) ...
 
-    int pixelIndex = 0;
-    // int pixelIndex = 0;
-    for (var y = 0; y < inputHeight; y++) {
-      for (var x = 0; x < inputWidth; x++) {
-        final pixel = resized.getPixel(x, y);
+    // 🔹 SOLUSI: Buat buffer output sebagai List<List<int>>
+    // Ini adalah struktur List<List<T>> yang paling stabil dan umum diterima oleh tflite_flutter.
+    final output = List.generate(1, (_) => List<int>.filled(numClasses, 0));
 
-        // Dapatkan RGB dari Pixel object
-        final r = pixel.r / 255.0;
-        final g = pixel.g / 255.0;
-        final b = pixel.b / 255.0;
-
-        input[pixelIndex++] = r;
-        input[pixelIndex++] = g;
-        input[pixelIndex++] = b;
-      }
-    }
-
-    // Buat output tensor
-    final output = List.filled(numClasses, 0.0).reshape([1, numClasses]);
-
-    // Run inference
+    // 🔹 Jalankan inference
+    // Input (Uint8List) perlu di-reshape ke [1, H, W, C]
+    // Output (List<List<int>>) akan menerima hasil
     interpreter!.run(input.reshape(inputShape), output);
 
-    // Ambil hasil terbaik
-    final results = (output[0] as List).cast<double>();
+    // 🔹 Ambil hasil dan Normalisasi Output
+    // Ambil baris pertama (index 0) dari List<List<int>>
+    final outputValues = output[0];
+
+    // Output uint8 harus dinormalisasi kembali ke 0.0-1.0 untuk mendapatkan probabilitas
+    final results = outputValues.map((e) => e / 255.0).toList();
+
+    // ... (Sisa kode untuk mencari maxProb, maxIndex, dan return) ...
     double maxProb = 0;
     int maxIndex = 0;
     for (int i = 0; i < results.length; i++) {
@@ -124,8 +134,7 @@ class LiteRtService extends ChangeNotifier {
       }
     }
 
-    final label = (maxIndex < labels.length) ? labels[maxIndex] : "Unknown";
-
+    final label = labels[maxIndex];
     log("📊 Prediksi: $label (${(maxProb * 100).toStringAsFixed(1)}%)");
 
     return {"label": label, "confidence": maxProb};

@@ -18,10 +18,15 @@ class AppInitializer extends ChangeNotifier {
 
   Future<void> _init() async {
     try {
+      // 🔹 Init Firebase sekali saja
       await FirebaseMlService.initFirebaseIfNeeded();
+
+      // 🔹 Init services
       firebaseMlService = FirebaseMlService();
       recipeService = RecipeService();
       liteRtService = LiteRtService(firebaseMlService);
+
+      // 🔹 Load ML model (ini bisa agak lama)
       await liteRtService.initModel();
 
       isReady = true;

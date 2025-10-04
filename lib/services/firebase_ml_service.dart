@@ -18,15 +18,14 @@ class FirebaseMlService {
     final instance = FirebaseModelDownloader.instance;
     final model = await instance.getModel(
       "food_classifier",
-      FirebaseModelDownloadType.localModel,
+      FirebaseModelDownloadType.latestModel,
       FirebaseModelDownloadConditions(
-        iosAllowsCellularAccess: true,
-        iosAllowsBackgroundDownloading: false,
-        androidChargingRequired: false,
         androidWifiRequired: false,
+        androidChargingRequired: false,
         androidDeviceIdleRequired: false,
       ),
     );
+
     return model.file;
   }
 }
