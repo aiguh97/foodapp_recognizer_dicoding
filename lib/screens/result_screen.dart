@@ -22,7 +22,7 @@ class ResultScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Recognition Result"),
+        title: const Text("Halaman Predikis"),
         backgroundColor: const Color.fromARGB(255, 73, 158, 76),
       ),
       body: FutureBuilder<Map<String, dynamic>>(
