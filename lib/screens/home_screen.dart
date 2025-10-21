@@ -137,12 +137,13 @@ class _HomeScreenState extends State<HomeScreen> {
         (a, b) => a.value > b.value ? a : b,
       );
       final label = bestEntry.key;
+      final labelText = label.toLowerCase();
       final confidence = bestEntry.value;
 
       // 🔍 Ambil detail dari USDA API
       final recipeService = context.read<RecipeService>();
       try {
-        await recipeService.fetchRecipeByName(label);
+        await recipeService.fetchRecipeByName(labelText);
 
         if (!mounted) return;
 
@@ -150,7 +151,7 @@ class _HomeScreenState extends State<HomeScreen> {
           context,
           MaterialPageRoute(
             builder: (_) => ResultScreen(
-              label: label,
+              label: labelText,
               confidence: confidence,
               imageFile: homeProvider.image!,
             ),
@@ -159,7 +160,7 @@ class _HomeScreenState extends State<HomeScreen> {
       } catch (_) {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => FoodNotFound(label: label)),
+          MaterialPageRoute(builder: (_) => FoodNotFound(label: labelText)),
         );
       }
     } catch (e) {
