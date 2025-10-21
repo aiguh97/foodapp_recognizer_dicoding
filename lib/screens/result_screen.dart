@@ -22,7 +22,7 @@ class ResultScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Halaman Predikis"),
+        title: const Text("Halaman Prediksi"),
         backgroundColor: const Color.fromARGB(255, 73, 158, 76),
       ),
       body: FutureBuilder<Map<String, dynamic>>(
@@ -35,7 +35,11 @@ class ResultScreen extends StatelessWidget {
           }
 
           if (snapshot.hasError) {
-            return Center(child: Text("Error: ${snapshot.error}"));
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [Center(child: Text("Error: ${snapshot.error}"))],
+            );
           }
 
           if (!snapshot.hasData) {

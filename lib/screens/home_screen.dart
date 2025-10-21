@@ -160,16 +160,44 @@ class _HomeScreenState extends State<HomeScreen> {
       } catch (_) {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => FoodNotFound(label: labelText)),
+          MaterialPageRoute(
+            builder: (_) => ResultScreen(
+              label: labelText,
+              confidence: confidence,
+              imageFile: homeProvider.image!,
+            ),
+          ),
         );
+        // Navigator.push(
+        //   context,
+        //   MaterialPageRoute(
+        //     builder: (_) => FoodNotFound(
+        //       label: 'makanan tidak memiliki referensi di MealDB API.',
+        //     ),
+        //   ),
+        // );
       }
     } catch (e) {
-      Navigator.pop(context);
-      debugPrint("❌ Error analyze image: $e");
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => FoodNotFound(label: e.toString())),
+        MaterialPageRoute(
+          builder: (_) => ResultScreen(
+            label: 'makanan tidak memiliki referensi di MealDB API.',
+            confidence: 100,
+            imageFile: homeProvider.image!,
+          ),
+        ),
       );
+      // Navigator.pop(context);
+      // debugPrint("❌ Error analyze image: $e");
+      // Navigator.push(
+      //   context,
+      //   MaterialPageRoute(
+      //     builder: (_) => FoodNotFound(
+      //       label: 'makanan tidak memiliki referensi di MealDB API.',
+      //     ),
+      //   ),
+      // );
     }
   }
 
